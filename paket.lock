@@ -1,0 +1,6 @@
+NUGET
+  remote: ../nugets
+  specs:
+    FSharp.Data (2.2.5)
+      Zlib.Portable (>= 1.10.0)
+    Zlib.Portable (1.11.0)

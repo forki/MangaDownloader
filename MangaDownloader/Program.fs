@@ -12,47 +12,6 @@ type Regex = System.Text.RegularExpressions.Regex
 type WebRequest  = System.Net.HttpWebRequest
 
 
-// Manuel HTTP functions
-let request(uri:Uri) =
-    let req = WebRequest.CreateHttp(uri)
-    req.Timeout <- 5000
-    req.ContinueTimeout <- 5000
-    req.ReadWriteTimeout <- 5000
-    req
-
-let setMethod m (req:WebRequest) =
-    req.Method <- m
-    req
-
-let asStream (req:WebRequest) = 
-    req.GetResponse().GetResponseStream()
-
-let requestGet  uri = request uri |> setMethod "GET"
-let requestHead uri = request uri |> setMethod "HEAD"
-
-
-// Retry function
-let retry x f y =
-    let rec loop count =
-        try
-            Some <| f y
-        with
-            | exn ->
-                match count < x with
-                | true  -> loop (count+1)
-                | false -> 
-                    printfn "Error: %A" exn
-                    None
-    loop 0
-
-
-// Retries Loading HTML 5 times
-let loadHtml uri =
-    let load (uri:string) =
-        HtmlDocument.Load(uri)
-    (load |> retry 5) <| uri.ToString()
-
-
 // Manga Types
 type Image   = Image   of Uri
 type Page    = Page    of int * Uri
@@ -73,7 +32,7 @@ type Page with
 
 // Fetching/Parsing Manga
 let getManga (uri:string) = maybe {
-    let! html = loadHtml uri
+    let! html = Download.asHtml uri
     let name =
         html.Descendants "div"
         |> Seq.filter  (HtmlNode.hasId "mangaproperties")
@@ -84,7 +43,7 @@ let getManga (uri:string) = maybe {
 }
 
 let getChapters (Manga (name,uri)) = maybe {
-    let! html = loadHtml uri
+    let! html = Download.asHtml uri
     return 
         html.Descendants "div"
         |> Seq.filter  (HtmlNode.hasId "chapterlist")
@@ -97,7 +56,7 @@ let getChapters (Manga (name,uri)) = maybe {
 }
 
 let getPages (Chapter (chapter,uri)) = maybe {
-    let! html = loadHtml uri
+    let! html = Download.asHtml uri
     return
         html.Descendants "select"
         |> Seq.filter  (fun node -> node.HasId "pageMenu" )
@@ -110,7 +69,7 @@ let getPages (Chapter (chapter,uri)) = maybe {
 }
 
 let getImage (Page (no,uri)) = maybe {
-    let! html = loadHtml uri
+    let! html = Download.asHtml uri
     return!
         html.Descendants "div"
         |> Seq.filter  (fun node -> node.HasId "imgholder" )
@@ -130,29 +89,21 @@ let getFileHandle manga chapter pageNo (Image uri) =
     path |> Path.GetDirectoryName |> Dir.CreateDirectory |> ignore
     File.Open(path, System.IO.FileMode.Append, System.IO.FileAccess.Write)
 
-let getUriSize (uri:Uri) =
-    let req = requestHead uri
-    use res = req.GetResponse()
-    res.ContentLength
-
-let retryGetUriSize (uri:Uri) = maybe {
-    return! (getUriSize |> retry 5) uri
-}
-
 let download (Image uri) (file:System.IO.FileStream) = maybe {
-    let! uriSize = retryGetUriSize uri
+    let! uriSize = Download.size uri
     if file.Position < uriSize then
-        let req = requestGet uri
+        let req = Download.getRequest uri
         req.AddRange(file.Position)
-        let stream = asStream req
+        let stream = req |> Download.asStream
         stream.CopyTo(file)
         return ()
 }
 
 let retryDownload image file = maybe {
-    let! result = (download image |> retry 5) file
+    let! result = (download image |> Retry.fromException 5) file
     return! result
 }
+
 
 // CLI Handling
 module Console =
@@ -183,9 +134,8 @@ module Console =
         for page in pages do
             printfn "Downloading [%s] Page %d" chapter.Title page.Number
             let! image = getImage page
-            let file   = getFileHandle manga.Title chapter.Title page.Number image
+            use file   = getFileHandle manga.Title chapter.Title page.Number image
             do! retryDownload image file
-            file.Dispose()
     }
 
     let downloadChapters manga start ``end`` = maybe {
@@ -201,9 +151,8 @@ module Console =
             for page in pages do
                 printfn "Downloading [%s] Page %d" chapter.Title page.Number
                 let! image = getImage page
-                let  file  = getFileHandle manga.Title chapter.Title page.Number image
+                use  file  = getFileHandle manga.Title chapter.Title page.Number image
                 do!  retryDownload image file
-                file.Dispose()
     }
 
 [<EntryPoint>]

@@ -4,7 +4,6 @@ open FSharp.Data
 
 // Imported Types
 type Int32 = System.Int32
-type Uri   = System.Uri
 type File  = System.IO.File
 type Dir   = System.IO.Directory
 type Path  = System.IO.Path
@@ -24,60 +23,43 @@ let pageNumber   (Page    (no,_))    = no
 
 type Manga with
     member o.Title = mangaTitle o
+    static member create name uri = Manga(name,uri)
 type Chapter with
     member o.Title = chapterTitle o
 type Page with
     member o.Number = pageNumber o
+type Image with
+    static member create uri = Image uri
 
 
-// Fetching/Parsing Manga
-let getManga (uri:string) = maybe {
-    let! html = Download.asHtml uri
-    let name =
-        html.Descendants "div"
-        |> Seq.filter  (HtmlNode.hasId "mangaproperties")
-        |> Seq.collect (fun node -> node.Descendants "h2")
-        |> Seq.map     (fun node -> node.InnerText())
-        |> Seq.head
-    return Manga (name, Uri uri)
-}
+// Fetching Manga 
+let (>>=) m f = Option.bind f m
+let (>->) f g x = (f x) >>= g
+
+let getManga uri =
+    let uri = Uri uri
+    uri |>  Download.asHtml >>= Manga.extractTitle |> Option.map (fun name -> Manga.create name uri)
 
 let getChapters (Manga (name,uri)) = maybe {
     let! html = Download.asHtml uri
-    return 
-        html.Descendants "div"
-        |> Seq.filter  (HtmlNode.hasId "chapterlist")
-        |> Seq.collect (fun node -> node.Descendants "a")
-        |> Seq.map     (fun node ->
-            let title  = node.InnerText()
-            let _,href = Uri.TryCreate(uri, node.AttributeValue("href"))
-            Chapter (title, href)
+    return!
+        Manga.extractChapters html
+        |> Option.traverse (fun (title,href) ->
+            Uri.tryCreate uri href |> Option.map (fun url -> Chapter(title,url))
         )
 }
 
 let getPages (Chapter (chapter,uri)) = maybe {
-    let! html = Download.asHtml uri
-    return
-        html.Descendants "select"
-        |> Seq.filter  (fun node -> node.HasId "pageMenu" )
-        |> Seq.collect (fun node -> node.Descendants "option")
-        |> Seq.map (fun node ->
-            let pageNumber = node.InnerText() |> System.Int32.Parse
-            let _,href     = Uri.TryCreate(uri, node.AttributeValue("value"))
-            Page (pageNumber, href)
+    let! html  = Download.asHtml uri
+    let! pages = Manga.extractPages html
+    return!
+        pages |> Option.traverse (fun (pageNumber,href) ->
+            Uri.tryCreate uri href |> Option.map (fun url -> Page(pageNumber,url))
         )
 }
 
-let getImage (Page (no,uri)) = maybe {
-    let! html = Download.asHtml uri
-    return!
-        html.Descendants "div"
-        |> Seq.filter  (fun node -> node.HasId "imgholder" )
-        |> Seq.collect (fun node -> node.Descendants "img")
-        |> Seq.tryHead
-        |> Option.map (fun node -> node.AttributeValue "src")
-        |> Option.map (Uri >> Image)
-}
+let getImage (Page (no,uri)) =
+    uri |> Download.asHtml >>= Manga.extractImage |> Option.map Image.create
 
 let fileExtension fileName =
     Regex(".*\.(.*)$").Match(fileName).Groups.[1].Value

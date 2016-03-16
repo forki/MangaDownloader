@@ -12,21 +12,6 @@ type Regex = System.Text.RegularExpressions.Regex
 type WebRequest  = System.Net.HttpWebRequest
 
 
-// TryParse Extension
-type System.Int32 with
-    static member tryParse str =
-        match Int32.TryParse(str) with
-        | false,_ -> None
-        | true,x  -> Some x
-
-
-// Maybe Monad
-let (>>=) m f = Option.bind f m
-let (>>-) m f = Option.iter f m
-
-
-
-
 // Manuel HTTP functions
 let request(uri:Uri) =
     let req = WebRequest.CreateHttp(uri)

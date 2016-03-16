@@ -1,4 +1,5 @@
-﻿open FSharp.Data
+﻿open MangaDownloader
+open FSharp.Data
 
 
 // Imported Types
@@ -9,7 +10,6 @@ type Dir   = System.IO.Directory
 type Path  = System.IO.Path
 type Regex = System.Text.RegularExpressions.Regex
 type WebRequest  = System.Net.HttpWebRequest
-type IDisposable = System.IDisposable
 
 
 // TryParse Extension
@@ -24,28 +24,7 @@ type System.Int32 with
 let (>>=) m f = Option.bind f m
 let (>>-) m f = Option.iter f m
 
-type MaybeBuilder() =
-    member o.Bind(m,f)     = Option.bind f m
-    member o.Return(x)     = Some x
-    member o.ReturnFrom(x) = x
-    member o.Zero()        = None
-    member o.Combine(m, f) = Option.bind f m
-    member o.Delay(f: unit -> _) = f
-    member o.Run(f) = f()
-    member o.TryFinally(m, compensation) =
-        try o.ReturnFrom(m)
-        finally compensation()
-    member o.Using(res:#IDisposable, body) =
-        o.TryFinally(body res, fun () -> match res with null -> () | disp -> disp.Dispose())
-    member o.While(guard, f) =
-        if not (guard()) then Some () else
-        do f() |> ignore
-        o.While(guard, f)
-    member o.For(sequence:seq<_>, body) =
-        o.Using(sequence.GetEnumerator(),
-            fun enum -> o.While(enum.MoveNext, o.Delay(fun () -> body enum.Current)))
 
-let maybe = MaybeBuilder()
 
 
 // Manuel HTTP functions

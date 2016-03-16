@@ -1,24 +1,23 @@
 ﻿open FSharp.Data
 
+
 // Imported Types
-type IDisposable = System.IDisposable
+type Int32 = System.Int32
 type Uri   = System.Uri
 type File  = System.IO.File
 type Dir   = System.IO.Directory
 type Path  = System.IO.Path
 type Regex = System.Text.RegularExpressions.Regex
-type WebRequest = System.Net.HttpWebRequest
+type WebRequest  = System.Net.HttpWebRequest
+type IDisposable = System.IDisposable
 
 
-// Manga Types
-type Image   = Image   of Uri
-type Page    = Page    of int * Uri
-type Chapter = Chapter of string * Uri
-type Manga   = Manga   of string * Uri
-
-let mangaTitle   (Manga   (title,_)) = title
-let chapterTitle (Chapter (title,_)) = title
-let pageNumber   (Page    (no,_))    = no
+// TryParse Extension
+type System.Int32 with
+    static member tryParse str =
+        match Int32.TryParse(str) with
+        | false,_ -> None
+        | true,x  -> Some x
 
 
 // Maybe Monad
@@ -83,27 +82,46 @@ let retry x f y =
     loop 0
 
 
-// wrapper - needed because of object/type-inference
-let loadHtml (uri:string) =
-    HtmlDocument.Load(uri)
+// Retries Loading HTML 5 times
+let loadHtml uri =
+    let load (uri:string) =
+        HtmlDocument.Load(uri)
+    (load |> retry 5) <| uri.ToString()
+
+
+// Manga Types
+type Image   = Image   of Uri
+type Page    = Page    of int * Uri
+type Chapter = Chapter of string * Uri
+type Manga   = Manga   of string * Uri
+
+let mangaTitle   (Manga   (title,_)) = title
+let chapterTitle (Chapter (title,_)) = title
+let pageNumber   (Page    (no,_))    = no
+
+type Manga with
+    member o.Title = mangaTitle o
+type Chapter with
+    member o.Title = chapterTitle o
+type Page with
+    member o.Number = pageNumber o
 
 
 // Fetching/Parsing Manga
-let getManga (uri:string) =
-    let html = (loadHtml |> retry 5) uri
-    html |> Option.map (fun html ->
-        let name =
-            html.Descendants "div"
-            |> Seq.filter  (HtmlNode.hasId "mangaproperties")
-            |> Seq.collect (fun node -> node.Descendants "h2")
-            |> Seq.map     (fun node -> node.InnerText())
-            |> Seq.head
-        Manga (name, Uri uri)
-    )
+let getManga (uri:string) = maybe {
+    let! html = loadHtml uri
+    let name =
+        html.Descendants "div"
+        |> Seq.filter  (HtmlNode.hasId "mangaproperties")
+        |> Seq.collect (fun node -> node.Descendants "h2")
+        |> Seq.map     (fun node -> node.InnerText())
+        |> Seq.head
+    return Manga (name, Uri uri)
+}
 
-let getChapters (Manga (name,uri)) =
-    let html = (loadHtml |> retry 5) <| uri.ToString()
-    html |> Option.map (fun html ->
+let getChapters (Manga (name,uri)) = maybe {
+    let! html = loadHtml uri
+    return 
         html.Descendants "div"
         |> Seq.filter  (HtmlNode.hasId "chapterlist")
         |> Seq.collect (fun node -> node.Descendants "a")
@@ -112,11 +130,11 @@ let getChapters (Manga (name,uri)) =
             let _,href = Uri.TryCreate(uri, node.AttributeValue("href"))
             Chapter (title, href)
         )
-    )
+}
 
-let getPages (Chapter (chapter,uri)) =
-    let html = (loadHtml |> retry 5) <| uri.ToString()
-    html |> Option.map (fun html ->
+let getPages (Chapter (chapter,uri)) = maybe {
+    let! html = loadHtml uri
+    return
         html.Descendants "select"
         |> Seq.filter  (fun node -> node.HasId "pageMenu" )
         |> Seq.collect (fun node -> node.Descendants "option")
@@ -125,18 +143,18 @@ let getPages (Chapter (chapter,uri)) =
             let _,href     = Uri.TryCreate(uri, node.AttributeValue("value"))
             Page (pageNumber, href)
         )
-    )
+}
 
-let getImage (Page (no,uri)) =
-    let html = (loadHtml |> retry 5) <| uri.ToString()
-    html |> Option.bind (fun html ->
+let getImage (Page (no,uri)) = maybe {
+    let! html = loadHtml uri
+    return!
         html.Descendants "div"
         |> Seq.filter  (fun node -> node.HasId "imgholder" )
         |> Seq.collect (fun node -> node.Descendants "img")
         |> Seq.tryHead
         |> Option.map (fun node -> node.AttributeValue "src")
         |> Option.map (Uri >> Image)
-    )
+}
 
 let fileExtension fileName =
     Regex(".*\.(.*)$").Match(fileName).Groups.[1].Value
@@ -153,15 +171,24 @@ let getUriSize (uri:Uri) =
     use res = req.GetResponse()
     res.ContentLength
 
-let download (Image uri) (file:System.IO.FileStream) =
-    let uriSize = (getUriSize |> retry 5) uri
-    uriSize |> Option.iter (fun uriSize ->
-        if file.Position < uriSize then
-            let req = requestGet uri
-            req.AddRange(file.Position)
-            let stream = asStream req
-            stream.CopyTo(file)
-    )
+let retryGetUriSize (uri:Uri) = maybe {
+    return! (getUriSize |> retry 5) uri
+}
+
+let download (Image uri) (file:System.IO.FileStream) = maybe {
+    let! uriSize = retryGetUriSize uri
+    if file.Position < uriSize then
+        let req = requestGet uri
+        req.AddRange(file.Position)
+        let stream = asStream req
+        stream.CopyTo(file)
+        return ()
+}
+
+let retryDownload image file = maybe {
+    let! result = (download image |> retry 5) file
+    return! result
+}
 
 // CLI Handling
 module Console =
@@ -184,40 +211,34 @@ module Console =
         )
 
     let downloadChapter manga no = maybe {
-        let  no           = System.Int32.Parse no
+        let! no           = Int32.tryParse no
         let! manga        = getManga manga
-        let  mangaTitle   = mangaTitle manga
         let! chapters     = getChapters manga
-        let  chapters     = Array.ofSeq chapters
-        let  chapter      = chapters.[no-1]
-        let  chapterTitle = chapterTitle chapter
+        let! chapter      = Seq.tryItem (no-1) chapters
         let! pages        = getPages chapter
         for page in pages do
-            let pageNumber = pageNumber page
-            printfn "Downloading [%s] Page %d" chapterTitle pageNumber
+            printfn "Downloading [%s] Page %d" chapter.Title page.Number
             let! image = getImage page
-            let file = getFileHandle mangaTitle chapterTitle pageNumber image
-            (download image |> retry 5) file |> ignore
+            let file   = getFileHandle manga.Title chapter.Title page.Number image
+            do! retryDownload image file
             file.Dispose()
     }
 
     let downloadChapters manga start ``end`` = maybe {
-        let  start      = (System.Int32.Parse start)   - 1
-        let  ``end``    = (System.Int32.Parse ``end``) - 1
-        let! manga      = getManga manga
-        let  mangaTitle = mangaTitle manga
-        let! chapters   = getChapters manga
-        let  chapters   = Array.ofSeq chapters
+        let decrease str = 
+            Int32.tryParse str |> Option.map (fun x -> x - 1)
+        let! start    = decrease start
+        let! ``end``  = decrease ``end``
+        let! manga    = getManga manga
+        let! chapters = getChapters manga
         for i in start .. ``end`` do
-            let chapter      = chapters.[i]
-            let chapterTitle = chapterTitle chapter
+            let! chapter      = Seq.tryItem i chapters
             let! pages = getPages chapter
             for page in pages do
-                let pageNumber = pageNumber page
-                printfn "Downloading [%s] Page %d" chapterTitle pageNumber
+                printfn "Downloading [%s] Page %d" chapter.Title page.Number
                 let! image = getImage page
-                let  file  = getFileHandle mangaTitle chapterTitle pageNumber image
-                (download image |> retry 5) file |> ignore
+                let  file  = getFileHandle manga.Title chapter.Title page.Number image
+                do!  retryDownload image file
                 file.Dispose()
     }
 

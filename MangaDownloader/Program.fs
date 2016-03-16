@@ -157,7 +157,9 @@ let download (Image uri) (file:System.IO.FileStream) =
     let uriSize = (getUriSize |> retry 5) uri
     uriSize |> Option.iter (fun uriSize ->
         if file.Position < uriSize then
-            use stream = requestGet uri |> asStream
+            let req = requestGet uri
+            req.AddRange(file.Position)
+            let stream = asStream req
             stream.CopyTo(file)
     )
 

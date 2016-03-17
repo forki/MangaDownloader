@@ -76,10 +76,10 @@ let getImage (page:Page) =
 let fileExtension fileName =
     Regex(".*\.(.*)$").Match(fileName).Groups.[1].Value
 
-let getFileHandle manga chapter pageNo (image:Image) =
+let getFileHandle (image:Image) =
     let ext      = image.Uri.Segments |> Array.last |> fileExtension
-    let fileName = sprintf "%d.%s" pageNo ext
-    let path     = Path.Combine(manga, chapter, fileName)
+    let fileName = sprintf "%d.%s" image.Page.Number ext
+    let path     = Path.Combine(image.Page.Chapter.Manga.Title, image.Page.Chapter.Title, fileName)
     path |> Path.GetDirectoryName |> Dir.CreateDirectory |> ignore
     File.Open(path, System.IO.FileMode.Append, System.IO.FileAccess.Write)
 
@@ -118,17 +118,17 @@ module Console =
                 )
         )
 
-    let downloadPage (manga:Manga) (chapter:Chapter) (page:Page) = maybe {
-        printfn "Downloading [%s] Page %d" chapter.Title page.Number
+    let downloadPage (page:Page) = maybe {
+        printfn "Downloading [%s] Page %d" page.Chapter.Title page.Number
         let! image = getImage page
-        use file   = getFileHandle manga.Title chapter.Title page.Number image
+        use file   = getFileHandle image
         do! retryDownload image file
     }
 
     let downloadChapter (manga:Manga) (chapter:Chapter) = maybe {
         let! pages = getPages chapter
         for page in pages do
-            do! downloadPage manga chapter page
+            do! downloadPage page
     }
 
     let decrease str = 

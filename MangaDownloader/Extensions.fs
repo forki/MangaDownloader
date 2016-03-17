@@ -2,6 +2,9 @@
 
 type Uri = System.Uri
 
+module Seq =
+    let filterIndexed f = Seq.indexed >> Seq.filter f >> Seq.map snd
+
 module Option =
     let apply fx xx =
         match fx,xx with

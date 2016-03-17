@@ -20,11 +20,19 @@ Shows a List of available Chapters
 
 `MangaDownloader.exe http://www.mangareader.net/one-piece 7`
 
-Downloads entry 7.
+Downloads entry 7
 
 `MangaDownloader.exe http://www.mangareader.net/one-piece 3 6`
 
-Downloads entry 3 to 6
+Downloads entries 3 to 6
+
+`MangaDownloader.exe http://www.mangareader.net/one-piece all`
+
+Downloads all chapters of the manga
+
+`MangaDownloader.exe http://www.mangareader.net/one-piece 100 end`
+
+Downloads all chapters starting from entry 100. 
 
 ## Destination
 

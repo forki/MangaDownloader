@@ -51,7 +51,7 @@ type Page with
 
 
 // Fetching Manga informations
-let (>>=) m f = Option.bind f m
+let (>>=) m f   = Option.bind f m
 let (>->) f g x = (f x) >>= g
 
 let getManga uri =
@@ -136,13 +136,13 @@ module Console =
             getManga manga >>= getChapters >>= Seq.tryItem no >>= downloadChapter
         )
 
+    let between x y i =
+        i >= x && i <= y
+
     let downloadMulti manga start stop = maybe {
-        let! start = decrease start
-        let! stop  = decrease stop
-        let between x y i =
-            i >= x && i <= y
-        let! chapters = getManga manga >>= getChapters
-        let  chapters = chapters |> Seq.indexed |> Seq.filter (fst >> between start stop) |> Seq.map snd
+        let! start    = decrease start
+        let! stop     = decrease stop
+        let! chapters = getManga manga >>= getChapters |> Option.map (Seq.filterIndexed (fst >> between start stop))
         for chapter in chapters do
             do! downloadChapter chapter
     }
@@ -150,12 +150,20 @@ module Console =
     let downloadAll manga =
         getManga manga >>= getChapters >>= Option.traverse downloadChapter |> Option.map ignore
 
+    let downloadFrom manga start =
+        decrease start >>= (fun start ->
+            getManga manga >>= getChapters 
+            |>  Option.map (Seq.filterIndexed (fst >> between start Int32.MaxValue))
+            >>= Option.traverse downloadChapter |> Option.map ignore
+        )
+
 [<EntryPoint>]
 let main argv =
     match argv with
-    | [| manga |]        -> Console.showChapters manga
-    | [| manga; "all" |] -> Console.downloadAll manga       |> ignore
-    | [| manga; no |]    -> Console.downloadSingle manga no |> ignore
-    | [| manga; s; e |]  -> Console.downloadMulti manga s e |> ignore
-    | _                  -> Console.showUsage ()
+    | [| manga |]            -> Console.showChapters manga
+    | [| manga; "all" |]     -> Console.downloadAll manga       |> ignore
+    | [| manga; no |]        -> Console.downloadSingle manga no |> ignore
+    | [| manga; no; "end" |] -> Console.downloadFrom manga no   |> ignore
+    | [| manga; s; e |]      -> Console.downloadMulti manga s e |> ignore
+    | _                      -> Console.showUsage ()
     0 // return an integer exit code

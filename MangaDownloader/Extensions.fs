@@ -11,13 +11,13 @@ module Option =
         | None _, None _ -> None
        
     let traverse f (sequence:seq<_>) =
-        let cons (x:'a) (s:seq<'a>) = seq { yield x; yield! s }
-        let cons x s = 
+        let cons (x:'a) (s:seq<'a>) = seq { yield! s; yield x; }
+        let cons x s =
             let cons = Option.map cons x
             (apply cons) s
-        let folder x xs =
+        let folder xs x =
             cons (f x) xs
-        Seq.foldBack folder sequence (Some(Seq.empty))
+        Seq.fold folder (Some(Seq.empty)) sequence
 
     let sequence (sequence:seq<_>) =
         traverse id sequence

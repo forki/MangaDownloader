@@ -12,59 +12,67 @@ type WebRequest  = System.Net.HttpWebRequest
 
 
 // Manga Types
-type Image = {
-    Uri: Uri
-}
-with static member create uri = {Uri=uri}
-
-type Page = {
-    Number: int
-    Uri:    Uri
-}
-with static member create no uri = {Number=no; Uri=uri}
-
-type Chapter = {
-    Title: string
-    Uri:   Uri
-}
-with static member create title uri = {Title=title; Uri=uri}
-
 type Manga = {
     Title: string
     Uri:   Uri
 }
 with static member create title uri = {Title=title; Uri=uri}
 
+type Chapter = {
+    Manga: Manga
+    Title: string
+    Uri:   Uri
+}
+with static member create manga title uri = {Manga=manga; Title=title; Uri=uri}
 
-// Fetching Manga 
+type Page = {
+    Chapter: Chapter
+    Number:  int
+    Uri:     Uri
+}
+with static member create chapter no uri = {Chapter=chapter; Number=no; Uri=uri}
+
+type Image = {
+    Page: Page
+    Uri:  Uri
+}
+with static member create page uri = {Page=page; Uri=uri}
+
+type Manga with
+    member o.createChapter = Chapter.create o
+    member o.createChapterWithRelativeUri(title,str) = 
+        str |> Uri.tryCreate o.Uri |> Option.map (o.createChapter title)
+type Chapter with
+    member o.createPage = Page.create o
+    member o.createPageWithRelativeUri(no,str) =
+        str |> Uri.tryCreate o.Uri |> Option.map (o.createPage no)
+type Page with
+    member o.createImage = Image.create o
+
+
+// Fetching Manga informations
 let (>>=) m f = Option.bind f m
 let (>->) f g x = (f x) >>= g
 
 let getManga uri =
     let uri = Uri uri
-    uri |>  Download.asHtml >>= Manga.extractTitle |> Option.map (fun name -> Manga.create name uri)
+    uri |> Download.asHtml >>= Manga.extractTitle |> Option.map (fun name -> Manga.create name uri)
 
-let getChapters (manga:Manga) = maybe {
-    let! html = Download.asHtml manga.Uri
-    return!
-        Manga.extractChapters html
-        |> Option.traverse (fun (title,href) ->
-            Uri.tryCreate manga.Uri href |> Option.map (fun uri -> Chapter.create title uri)
-        )
-}
+let getChapters (manga:Manga) =
+    Download.asHtml manga.Uri
+    |>  Option.map Manga.extractChapters
+    >>= Option.traverse manga.createChapterWithRelativeUri
 
-let getPages (chapter:Chapter) = maybe {
-    let! html  = Download.asHtml chapter.Uri
-    let! pages = Manga.extractPages html
-    return!
-        pages |> Option.traverse (fun (pageNumber,href) ->
-            Uri.tryCreate chapter.Uri href |> Option.map (fun uri -> Page.create pageNumber uri)
-        )
-}
+let getPages (chapter:Chapter) =
+    Download.asHtml chapter.Uri
+    >>= Manga.extractPages
+    >>= Option.traverse chapter.createPageWithRelativeUri
 
 let getImage (page:Page) =
-    page.Uri |> Download.asHtml >>= Manga.extractImage |> Option.map Image.create
+    page.Uri |> Download.asHtml >>= Manga.extractImage |> Option.map page.createImage
 
+
+// Saving Images
 let fileExtension fileName =
     Regex(".*\.(.*)$").Match(fileName).Groups.[1].Value
 

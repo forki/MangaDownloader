@@ -16,9 +16,11 @@ type MaybeBuilder() =
     member o.Using(res:#IDisposable, body) =
         o.TryFinally(body res, fun () -> match res with null -> () | disp -> disp.Dispose())
     member o.While(guard, f) =
-        if not (guard()) then Some () else
-        do f() |> ignore
-        o.While(guard, f)
+        if not (guard()) then 
+            Some () 
+        else
+            do f() |> ignore
+            o.While(guard, f)
     member o.For(sequence:seq<_>, body) =
         o.Using(sequence.GetEnumerator(),
             fun enum -> o.While(enum.MoveNext, o.Delay(fun () -> body enum.Current)))

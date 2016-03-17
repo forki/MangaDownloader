@@ -107,41 +107,43 @@ module Console =
                 )
         )
 
-    let downloadChapter manga no = maybe {
-        let! no           = Int32.tryParse no
-        let! manga        = getManga manga
-        let! chapters     = getChapters manga
-        let! chapter      = Seq.tryItem (no-1) chapters
-        let! pages        = getPages chapter
-        for page in pages do
-            printfn "Downloading [%s] Page %d" chapter.Title page.Number
-            let! image = getImage page
-            use file   = getFileHandle manga.Title chapter.Title page.Number image
-            do! retryDownload image file
+    let downloadPage (manga:Manga) (chapter:Chapter) (page:Page) = maybe {
+        printfn "Downloading [%s] Page %d" chapter.Title page.Number
+        let! image = getImage page
+        use file   = getFileHandle manga.Title chapter.Title page.Number image
+        do! retryDownload image file
     }
 
-    let downloadChapters manga start ``end`` = maybe {
-        let decrease str = 
+    let downloadChapter (manga:Manga) (chapter:Chapter) = maybe {
+        let! pages = getPages chapter
+        for page in pages do
+            do! downloadPage manga chapter page
+    }
+
+    let decrease str = 
             Int32.tryParse str |> Option.map (fun x -> x - 1)
+
+    let downloadSingle manga no = maybe {
+        let! no           = decrease no
+        let! manga        = getManga manga
+        let! chapters     = getChapters manga
+        do! chapters |> Seq.tryItem no >>= downloadChapter manga
+    }
+
+    let downloadMulti manga start ``end`` = maybe {
         let! start    = decrease start
         let! ``end``  = decrease ``end``
         let! manga    = getManga manga
         let! chapters = getChapters manga
-        for i in start .. ``end`` do
-            let! chapter      = Seq.tryItem i chapters
-            let! pages = getPages chapter
-            for page in pages do
-                printfn "Downloading [%s] Page %d" chapter.Title page.Number
-                let! image = getImage page
-                use  file  = getFileHandle manga.Title chapter.Title page.Number image
-                do!  retryDownload image file
+        for no in start .. ``end`` do
+            do! chapters |> Seq.tryItem no >>= downloadChapter manga
     }
 
 [<EntryPoint>]
 let main argv =
     match argv with
     | [| manga |]       -> Console.showChapters manga
-    | [| manga; no |]   -> Console.downloadChapter manga no |> ignore
-    | [| manga; s; e |] -> Console.downloadChapters manga s e |> ignore
+    | [| manga; no |]   -> Console.downloadSingle manga no |> ignore
+    | [| manga; s; e |] -> Console.downloadMulti manga s e |> ignore
     | _                 -> Console.showUsage ()
     0 // return an integer exit code

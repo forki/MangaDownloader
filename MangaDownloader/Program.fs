@@ -128,20 +128,13 @@ module Console =
     let downloadChapter (chapter:Chapter) =
         chapter |> getPages >>= Option.traverse downloadPage |> Option.map ignore
 
-    let decrease str = 
-        Int32.tryParse str |> Option.map (fun x -> x - 1)
-
     let downloadSingle manga no =
-        decrease no >>= (fun no ->
-            getManga manga >>= getChapters >>= Seq.tryItem no >>= downloadChapter
-        )
+        getManga manga >>= getChapters >>= Seq.tryItem no >>= downloadChapter
 
     let between x y i =
         i >= x && i <= y
 
     let downloadMulti manga start stop = maybe {
-        let! start    = decrease start
-        let! stop     = decrease stop
         let! chapters = getManga manga >>= getChapters |> Option.map (Seq.filterIndexed (fst >> between start stop))
         for chapter in chapters do
             do! downloadChapter chapter
@@ -151,19 +144,21 @@ module Console =
         getManga manga >>= getChapters >>= Option.traverse downloadChapter |> Option.map ignore
 
     let downloadFrom manga start =
-        decrease start >>= (fun start ->
-            getManga manga >>= getChapters 
-            |>  Option.map (Seq.filterIndexed (fst >> between start Int32.MaxValue))
-            >>= Option.traverse downloadChapter |> Option.map ignore
-        )
+        getManga manga >>= getChapters 
+        |>  Option.map (Seq.filterIndexed (fst >> between start Int32.MaxValue))
+        >>= Option.traverse downloadChapter |> Option.map ignore
 
 [<EntryPoint>]
 let main argv =
+    let (|Int|_|) = Int32.tryParse
+
+    // Subtracting "-1" from every "no" because in "showChapters" all chapters are shown "1" based 
+    // instead of zero based.
     match argv with
-    | [| manga |]            -> Console.showChapters manga
-    | [| manga; "all" |]     -> Console.downloadAll manga       |> ignore
-    | [| manga; no |]        -> Console.downloadSingle manga no |> ignore
-    | [| manga; no; "end" |] -> Console.downloadFrom manga no   |> ignore
-    | [| manga; s; e |]      -> Console.downloadMulti manga s e |> ignore
-    | _                      -> Console.showUsage ()
+    | [|manga|]         -> Console.showChapters manga
+    | [|manga; "all"|]  -> Console.downloadAll manga |> ignore
+    | [|manga; Int no|] -> Console.downloadSingle manga (no-1) |> ignore
+    | [|manga; Int no; "end"|]       -> Console.downloadFrom manga (no-1) |> ignore
+    | [|manga; Int start; Int stop|] -> Console.downloadMulti manga (start-1) (stop-1) |> ignore
+    | _ -> Console.showUsage ()
     0 // return an integer exit code

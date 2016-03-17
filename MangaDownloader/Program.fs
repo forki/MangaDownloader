@@ -125,29 +125,26 @@ module Console =
         do! retryDownload image file
     }
 
-    let downloadChapter (manga:Manga) (chapter:Chapter) = maybe {
-        let! pages = getPages chapter
-        for page in pages do
-            do! downloadPage page
-    }
+    let downloadChapter (chapter:Chapter) =
+        chapter |> getPages >>= Option.traverse downloadPage |> Option.map ignore
 
     let decrease str = 
-            Int32.tryParse str |> Option.map (fun x -> x - 1)
+        Int32.tryParse str |> Option.map (fun x -> x - 1)
 
-    let downloadSingle manga no = maybe {
-        let! no           = decrease no
-        let! manga        = getManga manga
-        let! chapters     = getChapters manga
-        do! chapters |> Seq.tryItem no >>= downloadChapter manga
-    }
+    let downloadSingle manga no =
+        decrease no >>= (fun no ->
+            getManga manga >>= getChapters >>= Seq.tryItem no >>= downloadChapter
+        )
 
-    let downloadMulti manga start ``end`` = maybe {
-        let! start    = decrease start
-        let! ``end``  = decrease ``end``
-        let! manga    = getManga manga
-        let! chapters = getChapters manga
-        for no in start .. ``end`` do
-            do! chapters |> Seq.tryItem no >>= downloadChapter manga
+    let downloadMulti manga start stop = maybe {
+        let! start = decrease start
+        let! stop  = decrease stop
+        let between x y i =
+            i >= x && i <= y
+        let! chapters = getManga manga >>= getChapters
+        let  chapters = chapters |> Seq.indexed |> Seq.filter (fst >> between start stop) |> Seq.map snd
+        for chapter in chapters do
+            do! downloadChapter chapter
     }
 
 [<EntryPoint>]

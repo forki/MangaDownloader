@@ -147,11 +147,15 @@ module Console =
             do! downloadChapter chapter
     }
 
+    let downloadAll manga =
+        getManga manga >>= getChapters >>= Option.traverse downloadChapter |> Option.map ignore
+
 [<EntryPoint>]
 let main argv =
     match argv with
-    | [| manga |]       -> Console.showChapters manga
-    | [| manga; no |]   -> Console.downloadSingle manga no |> ignore
-    | [| manga; s; e |] -> Console.downloadMulti manga s e |> ignore
-    | _                 -> Console.showUsage ()
+    | [| manga |]        -> Console.showChapters manga
+    | [| manga; "all" |] -> Console.downloadAll manga       |> ignore
+    | [| manga; no |]    -> Console.downloadSingle manga no |> ignore
+    | [| manga; s; e |]  -> Console.downloadMulti manga s e |> ignore
+    | _                  -> Console.showUsage ()
     0 // return an integer exit code

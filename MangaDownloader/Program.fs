@@ -8,7 +8,7 @@ type File  = System.IO.File
 type Dir   = System.IO.Directory
 type Path  = System.IO.Path
 type Regex = System.Text.RegularExpressions.Regex
-type WebRequest  = System.Net.HttpWebRequest
+type WebRequest = System.Net.HttpWebRequest
 
 
 // Manga Types

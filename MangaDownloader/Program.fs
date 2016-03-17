@@ -128,25 +128,14 @@ module Console =
     let downloadChapter (chapter:Chapter) =
         chapter |> getPages >>= Option.traverse downloadPage |> Option.map ignore
 
-    let downloadSingle manga no =
-        getManga manga >>= getChapters >>= Seq.tryItem no >>= downloadChapter
-
     let between x y i =
         i >= x && i <= y
 
-    let downloadMulti manga start stop = maybe {
+    let downloadFromTo manga start stop = maybe {
         let! chapters = getManga manga >>= getChapters |> Option.map (Seq.filterIndexed (fst >> between start stop))
         for chapter in chapters do
             do! downloadChapter chapter
     }
-
-    let downloadAll manga =
-        getManga manga >>= getChapters >>= Option.traverse downloadChapter |> Option.map ignore
-
-    let downloadFrom manga start =
-        getManga manga >>= getChapters 
-        |>  Option.map (Seq.filterIndexed (fst >> between start Int32.MaxValue))
-        >>= Option.traverse downloadChapter |> Option.map ignore
 
 [<EntryPoint>]
 let main argv =
@@ -156,9 +145,9 @@ let main argv =
     // instead of zero based.
     match argv with
     | [|manga|]         -> Console.showChapters manga
-    | [|manga; "all"|]  -> Console.downloadAll manga |> ignore
-    | [|manga; Int no|] -> Console.downloadSingle manga (no-1) |> ignore
-    | [|manga; Int no; "end"|]       -> Console.downloadFrom manga (no-1) |> ignore
-    | [|manga; Int start; Int stop|] -> Console.downloadMulti manga (start-1) (stop-1) |> ignore
+    | [|manga; "all"|]  -> Console.downloadFromTo manga 0 Int32.MaxValue |> ignore
+    | [|manga; Int no|] -> Console.downloadFromTo manga (no-1) (no-1) |> ignore
+    | [|manga; Int no; "end"|]       -> Console.downloadFromTo manga (no-1) Int32.MaxValue |> ignore
+    | [|manga; Int start; Int stop|] -> Console.downloadFromTo manga (start-1) (stop-1) |> ignore
     | _ -> Console.showUsage ()
     0 // return an integer exit code

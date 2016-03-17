@@ -12,24 +12,28 @@ type WebRequest  = System.Net.HttpWebRequest
 
 
 // Manga Types
-type Image   = Image   of Uri
-type Page    = Page    of int * Uri
-type Chapter = Chapter of string * Uri
-type Manga   = Manga   of string * Uri
+type Image = {
+    Uri: Uri
+}
+with static member create uri = {Uri=uri}
 
-let mangaTitle   (Manga   (title,_)) = title
-let chapterTitle (Chapter (title,_)) = title
-let pageNumber   (Page    (no,_))    = no
+type Page = {
+    Number: int
+    Uri:    Uri
+}
+with static member create no uri = {Number=no; Uri=uri}
 
-type Manga with
-    member o.Title = mangaTitle o
-    static member create name uri = Manga(name,uri)
-type Chapter with
-    member o.Title = chapterTitle o
-type Page with
-    member o.Number = pageNumber o
-type Image with
-    static member create uri = Image uri
+type Chapter = {
+    Title: string
+    Uri:   Uri
+}
+with static member create title uri = {Title=title; Uri=uri}
+
+type Manga = {
+    Title: string
+    Uri:   Uri
+}
+with static member create title uri = {Title=title; Uri=uri}
 
 
 // Fetching Manga 
@@ -40,41 +44,41 @@ let getManga uri =
     let uri = Uri uri
     uri |>  Download.asHtml >>= Manga.extractTitle |> Option.map (fun name -> Manga.create name uri)
 
-let getChapters (Manga (name,uri)) = maybe {
-    let! html = Download.asHtml uri
+let getChapters (manga:Manga) = maybe {
+    let! html = Download.asHtml manga.Uri
     return!
         Manga.extractChapters html
         |> Option.traverse (fun (title,href) ->
-            Uri.tryCreate uri href |> Option.map (fun url -> Chapter(title,url))
+            Uri.tryCreate manga.Uri href |> Option.map (fun uri -> Chapter.create title uri)
         )
 }
 
-let getPages (Chapter (chapter,uri)) = maybe {
-    let! html  = Download.asHtml uri
+let getPages (chapter:Chapter) = maybe {
+    let! html  = Download.asHtml chapter.Uri
     let! pages = Manga.extractPages html
     return!
         pages |> Option.traverse (fun (pageNumber,href) ->
-            Uri.tryCreate uri href |> Option.map (fun url -> Page(pageNumber,url))
+            Uri.tryCreate chapter.Uri href |> Option.map (fun uri -> Page.create pageNumber uri)
         )
 }
 
-let getImage (Page (no,uri)) =
-    uri |> Download.asHtml >>= Manga.extractImage |> Option.map Image.create
+let getImage (page:Page) =
+    page.Uri |> Download.asHtml >>= Manga.extractImage |> Option.map Image.create
 
 let fileExtension fileName =
     Regex(".*\.(.*)$").Match(fileName).Groups.[1].Value
 
-let getFileHandle manga chapter pageNo (Image uri) =
-    let ext      = uri.Segments |> Array.last |> fileExtension
+let getFileHandle manga chapter pageNo (image:Image) =
+    let ext      = image.Uri.Segments |> Array.last |> fileExtension
     let fileName = sprintf "%d.%s" pageNo ext
     let path     = Path.Combine(manga, chapter, fileName)
     path |> Path.GetDirectoryName |> Dir.CreateDirectory |> ignore
     File.Open(path, System.IO.FileMode.Append, System.IO.FileAccess.Write)
 
-let download (Image uri) (file:System.IO.FileStream) = maybe {
-    let! uriSize = Download.size uri
+let download (image:Image) (file:System.IO.FileStream) = maybe {
+    let! uriSize = Download.size image.Uri
     if file.Position < uriSize then
-        let req = Download.getRequest uri
+        let req = Download.getRequest image.Uri
         req.AddRange(file.Position)
         let stream = req |> Download.asStream
         stream.CopyTo(file)
@@ -97,13 +101,12 @@ module Console =
 
     let showChapters manga =
         getManga manga |> Option.iter (fun manga ->
-            let (Manga (title,_)) = manga
-            printfn "%s" title
+            printfn "%s" manga.Title
             match getChapters manga with
             | None          -> printfn "Error: Couldn't fetch Chapters"
             | Some chapters ->
-                chapters |> Seq.iteri (fun i (Chapter (chapter,_)) ->
-                    printfn "%d: %s" (i+1) chapter
+                chapters |> Seq.iteri (fun i chapter ->
+                    printfn "%d: %s" (i+1) chapter.Title
                 )
         )
 

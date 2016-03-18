@@ -1,8 +1,6 @@
 ﻿namespace MangaDownloader
 open FSharp.Data
 
-type WebRequest = System.Net.HttpWebRequest
-
 module Download =
     let request(uri:Uri) =
         let req = WebRequest.CreateHttp(uri)

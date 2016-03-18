@@ -53,6 +53,10 @@
     <Compile Include="Maybe.fs" />
     <Compile Include="Retry.fs" />
     <Compile Include="Download.fs" />
+    <Compile Include="DataTypes.fs">
+      <SubType>
+      </SubType>
+    </Compile>
     <Compile Include="Manga.fs" />
     <Compile Include="Program.fs" />
     <None Include="App.config" />

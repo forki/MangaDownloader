@@ -1,7 +1,15 @@
 ﻿namespace MangaDownloader
 
-type Uri = System.Uri
+// Imported Types
+type Uri   = System.Uri
+type Int32 = System.Int32
+type File  = System.IO.File
+type Dir   = System.IO.Directory
+type Path  = System.IO.Path
+type Regex = System.Text.RegularExpressions.Regex
+type WebRequest = System.Net.HttpWebRequest
 
+// Extensions
 module Seq =
     let filterIndexed f = Seq.indexed >> Seq.filter f >> Seq.map snd
 

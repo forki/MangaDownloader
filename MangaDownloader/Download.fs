@@ -4,6 +4,8 @@ open FSharp.Data
 module Download =
     let request(uri:Uri) =
         let req = WebRequest.CreateHttp(uri)
+        req.AutomaticDecompression <- 
+            System.Net.DecompressionMethods.GZip ||| System.Net.DecompressionMethods.Deflate
         req.Timeout <- 5000
         req.ContinueTimeout <- 5000
         req.ReadWriteTimeout <- 5000

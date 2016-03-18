@@ -26,8 +26,8 @@ let main argv =
     let fromTo uri start stop =
         Manga.fromUri uri >>= Manga.downloadFromTo start stop |> ignore
 
-    // Subtracting "-1" from every "no" because in "showChapters" all chapters are shown "1" based 
-    // instead of zero based.
+    // Subtracting "-1" from every "no" because in "showChapters" all
+    // chapters are shown "1" based instead of zero based.
     match argv with
     | [|Uri uri|]                      -> showChapters uri
     | [|Uri uri; "all"|]               -> fromTo uri 0 Int32.MaxValue

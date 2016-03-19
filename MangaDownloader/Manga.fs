@@ -7,8 +7,8 @@ module HTML =
         |> Seq.filter  (HtmlNode.hasId "mangaproperties")
         |> Seq.collect (fun node -> node.Descendants "h2")
         |> Seq.map     (fun node -> node.InnerText())
-        |> Seq.tryHead 
-        |> Result.fromOption (HTMLError ExtractTitle)
+        |> Seq.tryHead
+        |> Result.fromOption Error.HTML.extractTitle
 
     let extractChapters (root:Uri) (html:HtmlDocument) =
         html.Descendants "div"
@@ -16,7 +16,7 @@ module HTML =
         |> Seq.collect (fun node -> node.Descendants "a")
         |> Result.traverse (fun node -> result {
             let  title = node.InnerText()
-            let! uri   = node.AttributeValue("href") |> Uri.tryCreate root |> Result.fromOption (HTMLError ChapterURL)
+            let! uri   = node.AttributeValue("href") |> Uri.tryCreate root |> Result.fromOption Error.HTML.chapterURL
             return title, uri
         })
 
@@ -25,8 +25,8 @@ module HTML =
         |> Seq.filter  (fun node -> node.HasId "pageMenu" )
         |> Seq.collect (fun node -> node.Descendants "option")
         |> Result.traverse (fun node -> result {
-            let! pageNumber = node.InnerText() |> Int32.tryParse |> Result.fromOption (HTMLError ParseInt)
-            let! uri        = node.AttributeValue("value") |> Uri.tryCreate root |> Result.fromOption (HTMLError PageURL)
+            let! pageNumber = node.InnerText() |> Int32.tryParse |> Result.fromOption Error.HTML.parseInt
+            let! uri        = node.AttributeValue("value") |> Uri.tryCreate root |> Result.fromOption Error.HTML.pageURL
             return pageNumber, uri
         })
 
@@ -34,7 +34,7 @@ module HTML =
         html.Descendants "div"
         |> Seq.filter  (fun node -> node.HasId "imgholder" )
         |> Seq.collect (fun node -> node.Descendants "img")
-        |> Seq.tryHead |> Result.fromOption (HTMLError ImageURL)
+        |> Seq.tryHead |> Result.fromOption Error.HTML.imageURL
         |> Result.map (HtmlNode.attributeValue "src" >> Uri)
 
 
@@ -63,11 +63,11 @@ module Image =
             stream.CopyTo(file)
             return! Ok ()
         else
-            return! Error (DownloadError (Fetch image.Uri))
+            return! Error (Error.Download.fetch image.Uri)
     }
 
     let download image file =
-        let rawDownload = rawDownload image |> Result.fromExn (DownloadError (Fetch image.Uri))
+        let rawDownload = rawDownload image |> Result.fromExn (Error.Download.fetch image.Uri)
         Result.retry rawDownload 5 file |> Result.join
     
 

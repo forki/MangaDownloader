@@ -24,15 +24,15 @@ module Download =
     let asHtml uri =
         let load (uri:string) =
             HtmlDocument.Load(uri)
-        let load = load |> Result.fromExn (DownloadError (Fetch uri))
+        let load = load |> Result.fromExn (Error.Download.fetch uri)
         Result.retry load 5 (uri.ToString())
 
-    let rawSize (uri:Uri) =
+    let sizeExn (uri:Uri) =
         let req = headRequest uri
         use res = req.GetResponse()
         res.ContentLength
 
     let size (uri:Uri) =
-        let rawSize = rawSize |> Result.fromExn (DownloadError (Size uri))
+        let rawSize = sizeExn |> Result.fromExn (Error.Download.size uri)
         Result.retry rawSize 5 uri
     

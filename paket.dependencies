@@ -1,4 +1,5 @@
 source ../nugets
 source https://nuget.org/api/v2
 
+nuget Argu
 nuget FSharp.Data

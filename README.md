@@ -5,11 +5,10 @@ of pages if they fail, also supports resuming downloading of already partially d
 
 ## Usage
 
-`MangaDownloader.exe http://www.mangareader.net/one-piece`
+`MangaDownloader.exe --uri http://www.mangareader.net/one-piece`
 
 Shows a List of available Chapters
 
-	One Piece
 	1: One Piece 1
 	2: One Piece 2
 	3: One Piece 3
@@ -18,21 +17,21 @@ Shows a List of available Chapters
 	6: One Piece 6
 	7: One Piece 7
 
-`MangaDownloader.exe http://www.mangareader.net/one-piece 7`
+`MangaDownloader.exe --uri http://www.mangareader.net/one-piece --only 7`
 
 Downloads entry 7
 
-`MangaDownloader.exe http://www.mangareader.net/one-piece 3 6`
+`MangaDownloader.exe --uri http://www.mangareader.net/one-piece --range 3 6`
 
-Downloads entries 3 to 6
+Downloads entries 3 to 6 (including)
 
-`MangaDownloader.exe http://www.mangareader.net/one-piece all`
+`MangaDownloader.exe --uri http://www.mangareader.net/one-piece --all`
 
 Downloads all chapters of the manga
 
-`MangaDownloader.exe http://www.mangareader.net/one-piece 100 end`
+`MangaDownloader.exe --uri http://www.mangareader.net/one-piece --start 100`
 
-Downloads all chapters starting from entry 100. 
+Downloads all remaining chapters up to the end, starting from entry 100. 
 
 ## Destination
 

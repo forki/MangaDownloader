@@ -1,6 +1,7 @@
 NUGET
+  remote: https://www.nuget.org/api/v2
+  specs:
+    Argu (2.1)
   remote: ../nugets
   specs:
     FSharp.Data (2.2.5)
-      Zlib.Portable (>= 1.10.0)
-    Zlib.Portable (1.11.0)

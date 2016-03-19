@@ -1,6 +1,15 @@
 ﻿open MangaDownloader
 
-let (>>=) m f = Option.bind f m
+let (>>=) m f = Result.bind f m
+
+let showError = function
+    | HTMLError ParseInt     -> "Couldn't parse a string to an int"
+    | HTMLError ImageURL     -> "Parsing Image URL failed"
+    | HTMLError PageURL      -> "Parsing Page URL failed"
+    | HTMLError ChapterURL   -> "Parsing Chapter URL failed"
+    | HTMLError ExtractTitle -> "Parsing Manga Title failed"
+    | DownloadError (Size uri)  -> sprintf "Fetching Size of %O failed" uri
+    | DownloadError (Fetch uri) -> sprintf "Fetching %O failed" uri
 
 let showUsage () =
     printfn "MangaDownloader.exe [MangaUrl]"
@@ -11,8 +20,8 @@ let showUsage () =
 let showChapters uri =
     Manga.fromUri uri >>= Manga.chapters |> (fun chapters ->
         match chapters with
-        | None          -> printfn "Error: Couldn't fetch Manga chapters"
-        | Some chapters -> 
+        | Error err   -> printfn "Error: Couldn't fetch Manga chapters: %s" (showError err)
+        | Ok chapters -> 
             chapters |> Seq.iteri (fun i chapter ->
                 printfn "%4d: %s" (i+1) chapter.Title
             )
@@ -24,7 +33,10 @@ let main argv =
     let (|Int|_|) = Int32.tryParse
 
     let fromTo uri start stop =
-        Manga.fromUri uri >>= Manga.downloadFromTo start stop |> ignore
+        let result = Manga.fromUri uri >>= Manga.downloadFromTo start stop
+        match result with
+        | Ok _      -> ()
+        | Error err -> printfn "%s" (showError err)
 
     // Subtracting "-1" from every "no" because in "showChapters" all
     // chapters are shown "1" based instead of zero based.

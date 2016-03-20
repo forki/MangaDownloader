@@ -34,7 +34,8 @@ module HTML =
         html.Descendants "div"
         |> Seq.filter  (fun node -> node.HasId "imgholder" )
         |> Seq.collect (fun node -> node.Descendants "img")
-        |> Seq.tryHead |> Result.fromOption Error.HTML.imageURL
+        |> Seq.tryHead 
+        |> Result.fromOption Error.HTML.imageURL
         |> Result.map (HtmlNode.attributeValue "src" >> Uri)
 
 
@@ -54,22 +55,21 @@ module Image =
         path |> Path.GetDirectoryName |> Dir.CreateDirectory |> ignore
         File.Open(path, System.IO.FileMode.Append, System.IO.FileAccess.Write)
 
-    let rawDownload (image:Image) (file:System.IO.FileStream) = result {
+    let downloadExn (image:Image) (file:System.IO.FileStream) = result {
         let! uriSize = Download.size image.Uri
-        if file.Position < uriSize then
-            let req = Download.getRequest image.Uri
-            req.AddRange(file.Position)
-            let stream = req |> Download.asStream
-            stream.CopyTo(file)
-            return! Ok ()
-        else
-            return! Error (Error.Download.fetch image.Uri)
+        return 
+            if file.Position < uriSize then
+                let req = Download.getRequest image.Uri
+                req.AddRange(file.Position)
+                let stream = req |> Download.asStream
+                stream.CopyTo(file)
     }
 
     let download image file =
-        let rawDownload = rawDownload image |> Result.fromExn (Error.Download.fetch image.Uri)
-        Result.retry rawDownload 5 file |> Result.join
-    
+        let rawDownload = downloadExn image |> Result.fromExn (Error.Download.fetch image.Uri)
+        Result.retry rawDownload 5 file 
+        |> Result.join
+        |> Result.onError (fun err -> printfn "%s" (Error.toString err); Error err)
 
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]

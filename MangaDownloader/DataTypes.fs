@@ -27,6 +27,16 @@ module Error =
     module Download =
         let size  = Size  >> DownloadError
         let fetch = Fetch >> DownloadError
+    
+    // Converts error types to strings
+    let toString = function
+        | HTMLError ParseInt     -> "Couldn't parse a string to an int"
+        | HTMLError ImageURL     -> "Parsing Image URL failed"
+        | HTMLError PageURL      -> "Parsing Page URL failed"
+        | HTMLError ChapterURL   -> "Parsing Chapter URL failed"
+        | HTMLError ExtractTitle -> "Parsing Manga Title failed"
+        | DownloadError (Size uri)  -> sprintf "Fetching Size of %O failed" uri
+        | DownloadError (Fetch uri) -> sprintf "Fetching %O failed" uri
 
 // The types representing the Mangas
 type Manga = {
